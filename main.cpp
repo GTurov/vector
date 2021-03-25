@@ -1,7 +1,6 @@
 #include "vector.h"
 
 #include <stdexcept>
-#include <iostream>
 
 namespace {
 
@@ -101,8 +100,12 @@ void Test1() {
     {
         Vector<Obj> v(SIZE);
         assert(Obj::GetAliveObjectCount() == SIZE);
+        const int old_copy_count = Obj::num_copied;
+        const int old_move_count = Obj::num_moved;
         v.Reserve(SIZE * 2);
         assert(Obj::GetAliveObjectCount() == SIZE);
+        assert(Obj::num_copied == old_copy_count);
+        assert(Obj::num_moved == old_move_count + static_cast<int>(SIZE));
     }
     assert(Obj::GetAliveObjectCount() == 0);
 }
@@ -144,14 +147,11 @@ void Test2() {
         try {
             v[SIZE - 1].throw_on_copy = true;
             v.Reserve(SIZE * 2);
-            assert(false && "Exception is expected");
-        } catch (const std::runtime_error&) {
-            assert(Obj::num_copied == SIZE - 1);
         } catch (...) {
             // Unexpected error
             assert(false && "Unexpected exception");
         }
-        assert(v.Capacity() == SIZE);
+        assert(v.Capacity() == SIZE * 2);
         assert(v.Size() == SIZE);
         assert(Obj::GetAliveObjectCount() == SIZE);
     }

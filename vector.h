@@ -88,7 +88,7 @@ public:
             } catch (...) {
                 // В переменной i содержится количество созданных элементов.
                 // Теперь их надо разрушить
-                DestroyN(data_, i);
+                DestroyN(data_.GetAddress(), i);
                 // Перевыбрасываем пойманное исключение, чтобы сообщить об ошибке создания объекта
                 throw;
             }
@@ -106,7 +106,7 @@ public:
         } catch (...) {
             // В переменной i содержится количество созданных элементов.
             // Теперь их надо разрушить
-            DestroyN(data_, i);
+            DestroyN(data_.GetAddress(), i);
             // Перевыбрасываем пойманное исключение, чтобы сообщить об ошибке создания объекта
             throw;
         }
@@ -114,7 +114,7 @@ public:
     }
 
     ~Vector() {
-           DestroyN(data_, size_);
+           DestroyN(data_.GetAddress(), size_);
        }
 
     size_t Size() const noexcept {
@@ -129,20 +129,18 @@ public:
         if (new_capacity <= data_.Capacity()) {
             return;
         }
-        //T* new_data = nullptr;
+        T* data_ptr = nullptr;
         size_t i = 0;
         try {
-            //new_data = Allocate(new_capacity);
             RawMemory<T> new_memory(new_capacity);
+            data_ptr = new_memory.GetAddress();
             for (; i != size_; ++i) {
-                CopyConstruct(new_data + i, data_[i]);
+                CopyConstruct(new_memory + i, data_[i]);
             }
-            DestroyN(data_, size_);
-            Deallocate(data_);
-
             data_.Swap(new_memory);
+            DestroyN(data_.GetAddress(), size_);
         } catch (...) {
-            DestroyN(new_data, i);
+            DestroyN(data_ptr, i);
             throw;
         }
     }
