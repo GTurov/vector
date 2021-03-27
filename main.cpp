@@ -1,8 +1,27 @@
 #include "vector.h"
 
+#include <iostream>
 #include <stdexcept>
 
 namespace {
+
+// Магическое число, используемое для отслеживания живости объекта
+inline const uint32_t DEFAULT_COOKIE = 0xdeadbeef;
+
+struct TestObj {
+    TestObj() = default;
+    TestObj(const TestObj& other) = default;
+    TestObj& operator=(const TestObj& other) = default;
+    TestObj(TestObj&& other) = default;
+    TestObj& operator=(TestObj&& other) = default;
+    ~TestObj() {
+        cookie = 0;
+    }
+    [[nodiscard]] bool IsAlive() const noexcept {
+        return cookie == DEFAULT_COOKIE;
+    }
+    uint32_t cookie = DEFAULT_COOKIE;
+};
 
 struct Obj {
     Obj() {
@@ -244,8 +263,91 @@ void Test3() {
     }
 }
 
+void Test4() {
+    const size_t ID = 42;
+    const size_t SIZE = 100'500;
+    {
+        Obj::ResetCounters();
+        Vector<Obj> v;
+        v.Resize(SIZE);
+        assert(v.Size() == SIZE);
+        assert(v.Capacity() == SIZE);
+        assert(Obj::num_default_constructed == SIZE);
+    }
+    assert(Obj::GetAliveObjectCount() == 0);
+    {
+        const size_t NEW_SIZE = 10'000;
+        Obj::ResetCounters();
+        Vector<Obj> v(SIZE);
+        v.Resize(NEW_SIZE);
+        assert(v.Size() == NEW_SIZE);
+        assert(v.Capacity() == SIZE);
+        assert(Obj::num_destroyed == SIZE - NEW_SIZE);
+    }
+    assert(Obj::GetAliveObjectCount() == 0);
+    {
+        Obj::ResetCounters();
+        Vector<Obj> v(SIZE);
+        Obj o{ID};
+        v.PushBack(o);
+        assert(v.Size() == SIZE + 1);
+        assert(v.Capacity() == SIZE * 2);
+        assert(v[SIZE].id == ID);
+        assert(Obj::num_default_constructed == SIZE);
+        assert(Obj::num_copied == 1);
+        assert(Obj::num_constructed_with_id == 1);
+        assert(Obj::num_moved == SIZE);
+    }
+    assert(Obj::GetAliveObjectCount() == 0);
+    {
+        Obj::ResetCounters();
+        Vector<Obj> v(SIZE);
+        v.PushBack(Obj{ID});
+        assert(v.Size() == SIZE + 1);
+        assert(v.Capacity() == SIZE * 2);
+        assert(v[SIZE].id == ID);
+        assert(Obj::num_default_constructed == SIZE);
+        assert(Obj::num_copied == 0);
+        assert(Obj::num_constructed_with_id == 1);
+        assert(Obj::num_moved == SIZE + 1);
+    }
+    {
+        Obj::ResetCounters();
+        Vector<Obj> v;
+        v.PushBack(Obj{ID});
+        v.PopBack();
+        assert(v.Size() == 0);
+        assert(v.Capacity() == 1);
+        assert(Obj::GetAliveObjectCount() == 0);
+    }
+
+    {
+        Vector<TestObj> v(1);
+        assert(v.Size() == v.Capacity());
+        // Операция PushBack существующего элемента вектора должна быть безопасна
+        // даже при реаллокации памяти
+        v.PushBack(v[0]);
+        assert(v[0].IsAlive());
+        assert(v[1].IsAlive());
+    }
+    {
+        Vector<TestObj> v(1);
+        assert(v.Size() == v.Capacity());
+        // Операция PushBack для перемещения существующего элемента вектора должна быть безопасна
+        // даже при реаллокации памяти
+        v.PushBack(std::move(v[0]));
+        assert(v[0].IsAlive());
+        assert(v[1].IsAlive());
+    }
+}
+
 int main() {
     Test1();
+    std::cerr<<"Test1 OK\n";
     Test2();
+    std::cerr<<"Test2 OK\n";
     Test3();
+    std::cerr<<"Test3 OK\n";
+    Test4();
+    std::cerr<<"Test4 OK\n";
 }

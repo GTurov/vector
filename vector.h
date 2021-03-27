@@ -189,6 +189,57 @@ public:
         std::swap(this->size_, other.size_);
     }
 
+    void Resize(size_t new_size) {
+        if (new_size > size_) {
+            Reserve(new_size);
+            std::uninitialized_value_construct_n(data_+size_, new_size-size_);
+        } else {
+            for (size_t i = new_size; i != size_; ++i) {
+                data_[i].~T();
+            }
+        }
+        size_ = new_size;
+    }
+
+    void PushBack(const T& value) {
+        if (size_ == data_.Capacity()) {
+            RawMemory<T> new_data(data_.Capacity()==0?1:data_.Capacity()*2);
+            new (new_data+size_) T(value);
+            if constexpr (std::is_nothrow_move_constructible_v<T> || !std::is_copy_constructible_v<T>) {
+                std::uninitialized_move_n(data_.GetAddress(), size_, new_data.GetAddress());
+            } else {
+                std::uninitialized_copy_n(data_.GetAddress(), size_, new_data.GetAddress());
+            }
+            std::destroy_n(data_.GetAddress(), size_);
+            data_.Swap(new_data);
+        } else {
+            new (data_+size_) T(value);
+        }
+        ++size_;
+    }
+
+    void PushBack(T&& value) {
+        if (size_ == data_.Capacity()) {
+            RawMemory<T> new_data(data_.Capacity()==0?1:data_.Capacity()*2);
+            new (new_data+size_) T(std::move(value));
+            if constexpr (std::is_nothrow_move_constructible_v<T> || !std::is_copy_constructible_v<T>) {
+                std::uninitialized_move_n(data_.GetAddress(), size_, new_data.GetAddress());
+            } else {
+                std::uninitialized_copy_n(data_.GetAddress(), size_, new_data.GetAddress());
+            }
+            std::destroy_n(data_.GetAddress(), size_);
+            data_.Swap(new_data);
+        } else {
+            new (data_+size_) T(std::move(value));
+        }
+        ++size_;
+    }
+
+    void PopBack()  noexcept {
+        data_[size_-1].~T();
+        --size_;
+    }
+
 private:
     RawMemory<T> data_;
     size_t size_ = 0;
