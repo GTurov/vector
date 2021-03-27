@@ -240,6 +240,25 @@ public:
         --size_;
     }
 
+    template <typename... Args>
+    T& EmplaceBack(Args&&... args) {
+        if (size_ == data_.Capacity()) {
+            RawMemory<T> new_data(data_.Capacity()==0?1:data_.Capacity()*2);
+            new (new_data+size_) T(std::forward<Args>(args)...);
+            if constexpr (std::is_nothrow_move_constructible_v<T> || !std::is_copy_constructible_v<T>) {
+                std::uninitialized_move_n(data_.GetAddress(), size_, new_data.GetAddress());
+            } else {
+                std::uninitialized_copy_n(data_.GetAddress(), size_, new_data.GetAddress());
+            }
+            std::destroy_n(data_.GetAddress(), size_);
+            data_.Swap(new_data);
+        } else {
+            new (data_+size_) T(std::forward<Args>(args)...);
+        }
+        ++size_;
+        return data_[size_-1];
+    }
+
 private:
     RawMemory<T> data_;
     size_t size_ = 0;

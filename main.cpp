@@ -2,10 +2,11 @@
 
 #include <iostream>
 #include <stdexcept>
+#include <string>
 
 namespace {
 
-// Магическое число, используемое для отслеживания живости объекта
+// "Магическое" число, используемое для отслеживания живости объекта
 inline const uint32_t DEFAULT_COOKIE = 0xdeadbeef;
 
 struct TestObj {
@@ -39,6 +40,13 @@ struct Obj {
         ++num_constructed_with_id;
     }
 
+    Obj(int id, std::string name)
+        : id(id)
+        , name(std::move(name))  //
+    {
+        ++num_constructed_with_id_and_name;
+    }
+
     Obj(const Obj& other)
         : id(other.id)  //
     {
@@ -64,7 +72,7 @@ struct Obj {
 
     static int GetAliveObjectCount() {
         return num_default_constructed + num_copied + num_moved + num_constructed_with_id
-            - num_destroyed;
+            + num_constructed_with_id_and_name - num_destroyed;
     }
 
     static void ResetCounters() {
@@ -74,14 +82,17 @@ struct Obj {
         num_moved = 0;
         num_destroyed = 0;
         num_constructed_with_id = 0;
+        num_constructed_with_id_and_name = 0;
     }
 
     bool throw_on_copy = false;
     int id = 0;
+    std::string name;
 
     static inline int default_construction_throw_countdown = 0;
     static inline int num_default_constructed = 0;
     static inline int num_constructed_with_id = 0;
+    static inline int num_constructed_with_id_and_name = 0;
     static inline int num_copied = 0;
     static inline int num_moved = 0;
     static inline int num_destroyed = 0;
@@ -275,6 +286,7 @@ void Test4() {
         assert(Obj::num_default_constructed == SIZE);
     }
     assert(Obj::GetAliveObjectCount() == 0);
+
     {
         const size_t NEW_SIZE = 10'000;
         Obj::ResetCounters();
@@ -325,7 +337,7 @@ void Test4() {
         Vector<TestObj> v(1);
         assert(v.Size() == v.Capacity());
         // Операция PushBack существующего элемента вектора должна быть безопасна
-        // даже при реаллокации памяти
+        // даже при реаллокации памии
         v.PushBack(v[0]);
         assert(v[0].IsAlive());
         assert(v[1].IsAlive());
@@ -341,13 +353,42 @@ void Test4() {
     }
 }
 
+void Test5() {
+    const int ID = 42;
+    using namespace std::literals;
+    {
+        Obj::ResetCounters();
+        Vector<Obj> v;
+        auto& elem = v.EmplaceBack(ID, "Ivan"s);
+        assert(v.Capacity() == 1);
+        assert(v.Size() == 1);
+        assert(&elem == &v[0]);
+        assert(v[0].id == ID);
+        assert(v[0].name == "Ivan"s);
+        assert(Obj::num_constructed_with_id_and_name == 1);
+        assert(Obj::GetAliveObjectCount() == 1);
+    }
+    assert(Obj::GetAliveObjectCount() == 0);
+    {
+        Vector<TestObj> v(1);
+        assert(v.Size() == v.Capacity());
+        // Операция EmplaceBack существующего элемента вектора должна быть безопасна
+        // даже при реаллокации памяти
+        v.EmplaceBack(v[0]);
+        assert(v[0].IsAlive());
+        assert(v[1].IsAlive());
+    }
+}
+
 int main() {
-    Test1();
-    std::cerr<<"Test1 OK\n";
-    Test2();
-    std::cerr<<"Test2 OK\n";
-    Test3();
-    std::cerr<<"Test3 OK\n";
-    Test4();
-    std::cerr<<"Test4 OK\n";
+    try {
+        Test1();
+        Test2();
+        Test3();
+        Test4();
+        Test5();
+        std::cerr << 1;
+    } catch (const std::exception& e) {
+        std::cerr << e.what() << std::endl;
+    }
 }
