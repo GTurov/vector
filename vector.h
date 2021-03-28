@@ -90,6 +90,27 @@ private:
 template <typename T>
 class Vector {
 public:
+    using iterator = T*;
+    using const_iterator = const T*;
+    iterator begin() noexcept {
+        return data_.GetAddress();
+    }
+    iterator end() noexcept {
+        return data_+size_;
+    }
+    const_iterator begin() const noexcept {
+        return data_.GetAddress();
+    }
+    const_iterator end() const noexcept {
+        return data_+size_;
+    }
+    const_iterator cbegin() const noexcept {
+        return data_.GetAddress();
+    }
+    const_iterator cend() const noexcept {
+        return data_+size_;
+    }
+
     Vector() = default;
 
     explicit Vector(size_t size)
@@ -257,6 +278,173 @@ public:
         }
         ++size_;
         return data_[size_-1];
+    }
+
+    template <typename... Args>
+    iterator Emplace(const_iterator pos, Args&&... args) {
+        uint64_t n = pos - data_.GetAddress();
+        //std::cerr<<size_<<' '<<data_.Capacity();
+        if (size_ != data_.Capacity() && data_.Capacity() != 0) {
+            //T tmp_value(std::forward<Args>(args)...);
+            if (size_ != 0) {
+//                std::uninitialized_value_construct_n(data_+size_, 1);
+//                if constexpr (std::is_nothrow_move_constructible_v<T> || !std::is_copy_constructible_v<T>) {
+                    new (data_+size_) T(std::move(data_[size_-1]));
+//                } else {
+//                    new (data_+size_) T(data_[size_-1]);
+//                }
+//                if constexpr (std::is_nothrow_move_constructible_v<T> || !std::is_copy_constructible_v<T>) {
+//                    std::uninitialized_move_n(data_+size_-1, 1, data_+size_);
+//                } else {
+//                    std::uninitialized_copy_n(data_+size_-1, 1, data_+size_);
+//                }
+
+                std::cerr<<std::distance(data_+n, data_+size_-1);
+                std::move_backward(data_+n, data_+size_-1, data_+size_);
+            }
+//            T tmp_obj(std::forward<Args>(args)...);
+//            if constexpr (std::is_nothrow_move_constructible_v<T> || !std::is_copy_constructible_v<T>) {
+//                std::uninitialized_move_n(data_+n, 1, &tmp_obj);
+//            } else {
+//                std::uninitialized_copy_n(data_+n, 1, &tmp_obj);
+//            }
+//            data_[n] = (tmp_value);
+
+//            if constexpr (std::is_nothrow_move_constructible_v<T> || !std::is_copy_constructible_v<T>) {
+//                new (data_+n) T(std::move(tmp_value));
+//            } else {
+//                new (data_+n) T(tmp_value);
+//            }
+            new (data_+n) T(std::forward<Args>(args)...);
+        } else {
+            RawMemory<T> new_data(data_.Capacity()==0?1:data_.Capacity()*2);
+            new (new_data+n) T(std::forward<Args>(args)...);
+            try {
+                if constexpr (std::is_nothrow_move_constructible_v<T> || !std::is_copy_constructible_v<T>) {
+                    std::uninitialized_move_n(data_.GetAddress(), n, new_data.GetAddress());
+                } else {
+                    std::uninitialized_copy_n(data_.GetAddress(), n, new_data.GetAddress());
+                }
+            } catch (...) {
+                new_data[n].~T();
+                throw;
+            }
+            try {
+                if constexpr (std::is_nothrow_move_constructible_v<T> || !std::is_copy_constructible_v<T>) {
+                    std::uninitialized_move_n(data_+n, size_-n, new_data+n+1);
+                } else {
+                    std::uninitialized_copy_n(data_+n, size_-n, new_data+n+1);
+                }
+            } catch (...) {
+                std::destroy_n(new_data.GetAddress(), n+1);
+                throw;
+            }
+            std::destroy_n(data_.GetAddress(), size_);
+            data_.Swap(new_data);
+        }
+        ++size_;
+        return data_+n;
+    }
+    iterator Erase(const_iterator pos) /*noexcept(std::is_nothrow_move_assignable_v<T>)*/ {
+        uint64_t n = pos - data_.GetAddress();
+        std::move(data_+n+1, end(), data_+n);
+        data_[size_-1].~T();
+        --size_;
+        return data_ + n;
+    }
+    iterator Insert(const_iterator pos, const T& value) {
+        uint64_t n = pos - data_.GetAddress();
+        if (size_ != data_.Capacity() && data_.Capacity() != 0) {
+            T tmp_value(value);
+            if (size_ != 0) {
+//                if constexpr (std::is_nothrow_move_constructible_v<T> || !std::is_copy_constructible_v<T>) {
+                    new (data_+size_) T(std::move(data_[size_-1]));
+//                } else {
+//                    new (data_+size_) T(data_[size_-1]);
+//                }
+            }
+            std::move_backward(data_+n, data_+size_-1, data_+size_);
+            //new (data_+n) T(std::move(*tmp_data));
+            if constexpr (std::is_nothrow_move_constructible_v<T> || !std::is_copy_constructible_v<T>) {
+                new (data_+n) T(std::move(tmp_value));
+            } else {
+                new (data_+n) T(tmp_value);
+            }
+        } else {
+            RawMemory<T> new_data(data_.Capacity()==0?1:data_.Capacity()*2);
+            new (new_data+n) T(value);
+            try {
+                if constexpr (std::is_nothrow_move_constructible_v<T> || !std::is_copy_constructible_v<T>) {
+                    std::uninitialized_move_n(data_.GetAddress(), n, new_data.GetAddress());
+                } else {
+                    std::uninitialized_copy_n(data_.GetAddress(), n, new_data.GetAddress());
+                }
+            } catch (...) {
+                new_data[n].~T();
+                throw;
+            }
+            try {
+                if constexpr (std::is_nothrow_move_constructible_v<T> || !std::is_copy_constructible_v<T>) {
+                    std::uninitialized_move_n(data_+n, size_-n, new_data+n+1);
+                } else {
+                    std::uninitialized_copy_n(data_+n, size_-n, new_data+n+1);
+                }
+            } catch (...) {
+                std::destroy_n(new_data.GetAddress(), n+1);
+                throw;
+            }
+            std::destroy_n(data_.GetAddress(), size_);
+            data_.Swap(new_data);
+        }
+        ++size_;
+        return data_+n;
+    }
+    iterator Insert(const_iterator pos, T&& value) {
+        uint64_t n = pos - data_.GetAddress();
+        if (size_ != data_.Capacity() && data_.Capacity() != 0) {
+            T tmp_value(std::move(value));
+            if (size_ != 0) {
+                if constexpr (std::is_nothrow_move_constructible_v<T> || !std::is_copy_constructible_v<T>) {
+                    new (data_+size_) T(std::move(data_[size_-1]));
+                } else {
+                    new (data_+size_) T(data_[size_-1]);
+                }
+            }
+            std::move_backward(data_+n, data_+size_-1, data_+size_);
+            //new (data_+n) T(std::move(*tmp_data));
+            if constexpr (std::is_nothrow_move_constructible_v<T> || !std::is_copy_constructible_v<T>) {
+                new (data_+n) T(std::move(tmp_value));
+            } else {
+                new (data_+n) T(tmp_value);
+            }
+        } else {
+            RawMemory<T> new_data(data_.Capacity()==0?1:data_.Capacity()*2);
+            new (new_data+n) T(std::move(value));
+            try {
+                if constexpr (std::is_nothrow_move_constructible_v<T> || !std::is_copy_constructible_v<T>) {
+                    std::uninitialized_move_n(data_.GetAddress(), n, new_data.GetAddress());
+                } else {
+                    std::uninitialized_copy_n(data_.GetAddress(), n, new_data.GetAddress());
+                }
+            } catch (...) {
+                new_data[n].~T();
+                throw;
+            }
+            try {
+                if constexpr (std::is_nothrow_move_constructible_v<T> || !std::is_copy_constructible_v<T>) {
+                    std::uninitialized_move_n(data_+n, size_-n, new_data+n+1);
+                } else {
+                    std::uninitialized_copy_n(data_+n, size_-n, new_data+n+1);
+                }
+            } catch (...) {
+                std::destroy_n(new_data.GetAddress(), n+1);
+                throw;
+            }
+            std::destroy_n(data_.GetAddress(), size_);
+            data_.Swap(new_data);
+        }
+        ++size_;
+        return data_+n;
     }
 
 private:
