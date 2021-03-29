@@ -117,6 +117,11 @@ struct Obj {
     static inline int num_move_assigned = 0;
 };
 
+//std::ostream& operator<<(std::ostream& out, const Obj& o) {
+//    out << o.id << ' ' << '"' << o.name << '"';
+//    return out;
+//}
+
 }  // namespace
 
 void Test1() {
@@ -444,6 +449,7 @@ void Test6() {
         assert(Obj::num_move_assigned == 0);
         assert(Obj::GetAliveObjectCount() == 1);
     }
+    std::cerr<<"---\n";
     {
         Obj::ResetCounters();
         Vector<Obj> v;
@@ -452,6 +458,12 @@ void Test6() {
         assert(v.Size() == 1);
         assert(v.Capacity() >= v.Size());
         assert(&*pos == &v[0]);
+        std::cerr << Obj::num_moved << ' '
+                  << Obj::num_constructed_with_id << ' '
+                  << Obj::num_copied << ' '
+                  << Obj::num_assigned << ' '
+                  << Obj::num_move_assigned << ' '
+                  << std::endl;
         assert(Obj::num_moved == 1);
         assert(Obj::num_constructed_with_id == 1);
         assert(Obj::num_copied == 0);
@@ -525,6 +537,7 @@ void Test6() {
         assert(Obj::num_assigned == 0);
         assert(Obj::GetAliveObjectCount() == SIZE + 1);
     }
+    std::cerr<<"---\n";
     {
         Obj::ResetCounters();
         Vector<Obj> v{SIZE};
@@ -534,13 +547,14 @@ void Test6() {
         auto* pos = v.Emplace(v.cbegin() + 3, ID, "Ivan"s);
         assert(v.Size() == SIZE + 1);
         assert(&*pos == &v[3]);
+        //std::cerr<<v[3].name<<v[3].id;
         assert(v[3].id == ID);
         assert(v[3].name == "Ivan");
         assert(Obj::num_copied == 0);
         assert(Obj::num_default_constructed == SIZE);
         assert(Obj::num_constructed_with_id_and_name == 1);
         assert(Obj::num_moved == old_num_moved + 1);
-        std::cerr<<Obj::num_move_assigned<<'-'<<SIZE - 3<<std::endl;
+        //std::cerr<<Obj::num_move_assigned<<'-'<<SIZE - 3<<std::endl;
         assert(Obj::num_move_assigned == SIZE - 3);
         assert(Obj::num_assigned == 0);
     }
@@ -746,24 +760,24 @@ int main() {
 //        X = std::move(Y);
 //        std::cerr<<X<<Y<<std::endl;
 
-//        Vector<ValueHolder<int>> v(10);
-//        for(int i = 0; i <10; ++i) {
-//            v[i] = i;
-//        }
-//        std::cerr<<v;
-//        v.Reserve(20);
-//        //std::cerr<<v;
-//        v.Insert(v.begin()+3,11);
-//        std::cerr<<v;
+        Vector<ValueHolder<int>> v(10);
+        for(int i = 0; i <10; ++i) {
+            v[i] = i;
+        }
+        std::cerr<<v;
+        //v.Reserve(20);
+        //std::cerr<<v;
+        v.Insert(v.begin()+3,10);
+        std::cerr<<v;
     }
 
-//    {
+    {
 //        std::vector<ValueHolder<int>> v(10,0);
 //        std::fill(v.begin()+2, v.begin()+7,1);
 //        std::cerr<<v;
-//        std::move_backward(v.begin()+2, v.end()+1, v.end());
+//        std::move_backward(v.begin()+2, v.end()-1, v.end());
 //        std::cerr<<v;
-//    }
+    }
 //    {
 //        Vector<int> v(3);
 //        int counter = 0;
