@@ -239,7 +239,9 @@ public:
 
     template <typename... Args>
     iterator Emplace(const_iterator pos, Args&&... args) {
-        CheckIterator(pos);
+        if (pos < data_.GetAddress() || pos > data_+size_) {
+            throw std::out_of_range("wrong iterator");
+        }
         uint64_t element_number = pos - data_.GetAddress();
         if (size_ != data_.Capacity() && data_.Capacity() != 0) {
             if (element_number != size_) {
@@ -281,7 +283,9 @@ public:
     }
 
     iterator Erase(const_iterator pos) /*noexcept(std::is_nothrow_move_assignable_v<T>)*/ {
-        CheckIterator(pos);
+        if (pos < data_.GetAddress() || pos >= data_+size_) {
+            throw std::out_of_range("wrong iterator");
+        }
         uint64_t n = pos - data_.GetAddress();
         std::move(data_ + n + 1, end(), data_ + n);
         data_[size_ - 1].~T();
@@ -298,11 +302,6 @@ public:
     }
 
 private:
-    void CheckIterator(const_iterator pos) {
-        if (pos < data_.GetAddress() || pos > data_+size_) {
-            throw std::out_of_range("wrong iterator");
-        }
-    }
     RawMemory<T> data_;
     size_t size_ = 0;
 };
